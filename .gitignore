@@ -12,4 +12,6 @@
 *.out
 
 *.pem
+*.key
+*.crt
 .idea

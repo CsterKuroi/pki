@@ -26,3 +26,17 @@ func GenerateKeyPair() (*pem.Block, *pem.Block) {
 	}
 	return priBlock, pubBlock
 }
+
+func Sign(origin []byte, priBlock *pem.Block) []byte {
+	privateKey := new([64]byte)
+	copy((*privateKey)[:], priBlock.Bytes)
+	signature := sign.Sign(nil, origin, privateKey)
+	return signature
+}
+
+func Verify(signature []byte, pubBlock *pem.Block) bool {
+	publicKey := new([32]byte)
+	copy((*publicKey)[:], pubBlock.Bytes)
+	_, valid := sign.Open(nil, signature, publicKey)
+	return valid
+}

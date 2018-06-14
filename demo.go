@@ -1,17 +1,35 @@
 package main
 
 import (
+	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
 
+	"github.com/CsterKuroi/pki/accesscontrol"
+	"github.com/CsterKuroi/pki/common/nacl/sign"
 	"github.com/CsterKuroi/pki/common/rsa"
 
 	"github.com/btcsuite/btcutil/base58"
 )
 
-var rsaPrivate, rsaPublic, ed25519Private, ed25519Public *pem.Block
+const start = `
+ ____    _____      _      ____    _____ 
+/ ___|  |_   _|    / \    |  _ \  |_   _|
+\___ \    | |     / _ \   | |_) |   | |  
+ ___) |   | |    / ___ \  |  _ <    | |  
+|____/    |_|   /_/   \_\ |_| \_\   |_|  
+`
+const end = `
+ _____   _   _   ____   
+| ____| | \ | | |  _ \  
+|  _|   |  \| | | | | | 
+| |___  | |\  | | |_| | 
+|_____| |_| \_| |____/  
+`
+
+var rsaPrivate, rsaPublic, ed25519Private, ed25519Public, rootCert, rootPri *pem.Block
 
 func file2Pem(name string) *pem.Block {
 	b, err := ioutil.ReadFile(name)
@@ -28,15 +46,17 @@ func init() {
 
 	ed25519Private = file2Pem("./release/ed25519_private.pem")
 	ed25519Public = file2Pem("./release/ed25519_public.pem")
+
+	rootCert = file2Pem("./release/ca_root_crt.pem")
+	rootPri = file2Pem("./release/ca_root_private.pem")
 }
 
 func rsaDemo() {
 	//rsa[gen,sign,verify,encrypt,decrypt]
-	fakePri, fakePub := rsa.GenerateKeyPair()
-	msg := []byte("The State Council decided last Wednesday to further cut tariffs on a number of imported goods starting July 1")
-	fmt.Println("origin msg  :", string(msg))
-
 	fmt.Println("===================== RSA DEMO(encrypt,decrypt) =====================")
+	fakePri, fakePub := rsa.GenerateKeyPair()
+	msg := []byte("The State Council decided last Wednesday")
+	fmt.Println("origin msg  :", string(msg))
 	cipher, err := rsa.Encrypt(msg, rsaPublic)
 	if err != nil {
 		log.Fatal(err)
@@ -65,13 +85,72 @@ func rsaDemo() {
 }
 
 func naclSignDemo() {
+	//nacl.sign[gen,sign,verify]
+	fmt.Println("===================== ED25519 DEMO(sign,verify) =====================")
+	_, fakePub := sign.GenerateKeyPair()
+	msg := []byte("President Trump meets Kim Jong-un")
+	fmt.Println("origin msg  :", string(msg))
+	sig := sign.Sign(msg, ed25519Private)
+	fmt.Println("sign       >> :", sig)
+	fmt.Println("b58 signature :", base58.Encode(sig))
+	valid := sign.Verify(sig, ed25519Public)
+	fmt.Println("verify     >> :", valid)
+	valid = sign.Verify(sig, fakePub)
+	fmt.Println("*verify*   >> :", valid)
+}
+func caDemo() {
+	//accesscontrol[gen,verify]
+	fmt.Println("===================== CA DEMO(gen,verify) =====================")
+	orgInfo := accesscontrol.CertInformation{
+		Country:            []string{"UK"},
+		Organization:       []string{"overwatch"},
+		IsCA:               true,
+		OrganizationalUnit: []string{"darkwatch"},
+		EmailAddress:       []string{"tracer@overwatch.com"},
+		Locality:           []string{"London"},
+		Province:           []string{"England"},
+		CommonName:         "www.overwatch.com",
+		DNSnames:           []string{"www.overwatch.com"},
+	}
+	fmt.Println("org information         :", orgInfo)
+	rootCertObj, err := x509.ParseCertificate(rootCert.Bytes)
+	rootPriObj, err := x509.ParsePKCS1PrivateKey(rootPri.Bytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+	orgCert, orgPri, err := accesscontrol.GenerateCert(rootCertObj, rootPriObj, orgInfo)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("gen org private key  >> :", orgPri)
+	fmt.Println("gen org cert         >> :", orgCert)
 
+	roots := x509.NewCertPool()
+	ok := roots.AppendCertsFromPEM(pem.EncodeToMemory(rootCert))
+	if !ok {
+		log.Fatal("failed to parse root certificate")
+	}
+	orgCertObj, err := x509.ParseCertificate(orgCert.Bytes)
+	if err != nil {
+		log.Fatal("failed to parse org certificate: " + err.Error())
+	}
+	opts := x509.VerifyOptions{
+		DNSName: "www.overwatch.com",
+		Roots:   roots,
+	}
+	valid, err := accesscontrol.VerifyCert(orgCertObj, opts)
+	fmt.Println("verify               >> :", valid, err)
+	opts2 := x509.VerifyOptions{
+		DNSName: "www.overwatch.com",
+	}
+	valid, err = accesscontrol.VerifyCert(orgCertObj, opts2)
+	fmt.Println("*verify*             >> :", valid, err)
 }
 
 func main() {
+	fmt.Println(start)
 	rsaDemo()
 	naclSignDemo()
-	//nacl.sign[gen,sign,verify]
-	//nacl.box[gen,seal,open]
-	//nacl.secretbox[gen,seal,open]
+	caDemo()
+	fmt.Println(end)
 }
