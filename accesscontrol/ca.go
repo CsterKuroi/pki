@@ -8,15 +8,15 @@ import (
 	"encoding/pem"
 	"log"
 	"math/big"
-	rd "math/rand"
+	mathrand "math/rand"
 	"time"
 )
 
 func init() {
-	rd.Seed(time.Now().UnixNano())
+	mathrand.Seed(time.Now().UnixNano())
 }
 
-type CertInformation struct {
+type CertInfo struct {
 	Country            []string
 	Organization       []string
 	OrganizationalUnit []string
@@ -28,8 +28,8 @@ type CertInformation struct {
 	DNSnames           []string
 }
 
-func GenerateCert(RootCa *x509.Certificate, RootPri *rsa.PrivateKey, info CertInformation) (*pem.Block, *pem.Block, error) {
-	Cert := newCertificate(info)
+func GenerateCert(RootCa *x509.Certificate, RootPri *rsa.PrivateKey, info CertInfo) (*pem.Block, *pem.Block, error) {
+	Cert := newCert(info)
 	bits := 1024
 	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
@@ -56,19 +56,24 @@ func GenerateCert(RootCa *x509.Certificate, RootPri *rsa.PrivateKey, info CertIn
 	return certBlock, priBlock, nil
 }
 
-func VerifyCert(orgCertObj *x509.Certificate, opts x509.VerifyOptions) (bool, error) {
+type crlError struct{}
+
+func (this *crlError) Error() string { return "CRL: IN Revoked Certificate List" }
+
+func VerifyCert(orgCertObj *x509.Certificate, opts x509.VerifyOptions, crl *pkix.CertificateList) (bool, error) {
 	_, err := orgCertObj.Verify(opts)
 	if err != nil {
 		return false, err
 	}
-	//TODO 废除列表
-	//if orgCertObj in crl {return false,crlerror}
+	if IsCertInCRL(orgCertObj, crl) {
+		return false, &crlError{}
+	}
 	return true, nil
 }
 
-func newCertificate(info CertInformation) *x509.Certificate {
+func newCert(info CertInfo) *x509.Certificate {
 	return &x509.Certificate{
-		SerialNumber: big.NewInt(rd.Int63()),
+		SerialNumber: big.NewInt(mathrand.Int63()),
 		Subject: pkix.Name{
 			Country:            info.Country,
 			Organization:       info.Organization,
@@ -77,13 +82,14 @@ func newCertificate(info CertInformation) *x509.Certificate {
 			CommonName:         info.CommonName,
 			Locality:           info.Locality,
 		},
-		NotBefore:             time.Now(),                   //证书的开始时间
-		NotAfter:              time.Now().AddDate(20, 0, 0), //证书的结束时间
-		BasicConstraintsValid: true,                         //基本的有效性约束
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(2, 0, 0),
+		BasicConstraintsValid: true,
 		IsCA:           info.IsCA,                                                                  //是否是根证书
 		ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth}, //证书用途
 		KeyUsage:       x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		EmailAddresses: info.EmailAddress,
 		DNSNames:       info.DNSnames,
+		//CRLDistributionPoints
 	}
 }

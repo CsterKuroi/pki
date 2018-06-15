@@ -11,7 +11,9 @@ import (
 	"github.com/CsterKuroi/pki/common/nacl/sign"
 	"github.com/CsterKuroi/pki/common/rsa"
 
+	"crypto/x509/pkix"
 	"github.com/btcsuite/btcutil/base58"
+	"time"
 )
 
 const start = `
@@ -29,7 +31,7 @@ const end = `
 |_____| |_| \_| |____/  
 `
 
-var rsaPrivate, rsaPublic, ed25519Private, ed25519Public, rootCert, rootPri *pem.Block
+var rsaPrivate, rsaPublic, ed25519Private, ed25519Public, rootCert, rootPri, crl *pem.Block
 
 func file2Pem(name string) *pem.Block {
 	b, err := ioutil.ReadFile(name)
@@ -49,6 +51,8 @@ func init() {
 
 	rootCert = file2Pem("./release/ca_root_crt.pem")
 	rootPri = file2Pem("./release/ca_root_private.pem")
+
+	crl = file2Pem("./release/ca_crl.pem")
 }
 
 func rsaDemo() {
@@ -89,7 +93,7 @@ func naclSignDemo() {
 	fmt.Println("===================== ED25519 DEMO(sign,verify) =====================")
 	_, fakePub := sign.GenerateKeyPair()
 	msg := []byte("President Trump meets Kim Jong-un")
-	fmt.Println("origin msg  :", string(msg))
+	fmt.Println("origin msg    :", string(msg))
 	sig := sign.Sign(msg, ed25519Private)
 	fmt.Println("sign       >> :", sig)
 	fmt.Println("b58 signature :", base58.Encode(sig))
@@ -101,7 +105,7 @@ func naclSignDemo() {
 func caDemo() {
 	//accesscontrol[gen,verify]
 	fmt.Println("===================== CA DEMO(gen,verify) =====================")
-	orgInfo := accesscontrol.CertInformation{
+	orgInfo := accesscontrol.CertInfo{
 		Country:            []string{"UK"},
 		Organization:       []string{"overwatch"},
 		IsCA:               true,
@@ -138,12 +142,28 @@ func caDemo() {
 		DNSName: "www.overwatch.com",
 		Roots:   roots,
 	}
-	valid, err := accesscontrol.VerifyCert(orgCertObj, opts)
+	crlObj, err := x509.ParseCRL(crl.Bytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	valid, err := accesscontrol.VerifyCert(orgCertObj, opts,crlObj)
 	fmt.Println("verify               >> :", valid, err)
 	opts2 := x509.VerifyOptions{
 		DNSName: "www.overwatch.com",
 	}
-	valid, err = accesscontrol.VerifyCert(orgCertObj, opts2)
+	valid, err = accesscontrol.VerifyCert(orgCertObj, opts2,crlObj)
+	fmt.Println("*verify*             >> :", valid, err)
+
+	fmt.Println("crl list                :", crlObj.TBSCertList.RevokedCertificates)
+	rCert := pkix.RevokedCertificate{
+		SerialNumber:   orgCertObj.SerialNumber,
+		RevocationTime: time.Now(),
+	}
+	accesscontrol.Append2CRL(rCert, crlObj)
+	fmt.Println("append to crl list   >> :", crlObj.TBSCertList.RevokedCertificates)
+
+	valid, err = accesscontrol.VerifyCert(orgCertObj, opts,crlObj)
 	fmt.Println("*verify*             >> :", valid, err)
 }
 

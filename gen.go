@@ -1,15 +1,16 @@
 package main
 
 import (
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/CsterKuroi/pki/accesscontrol"
 	"github.com/CsterKuroi/pki/common/nacl/sign"
 	"github.com/CsterKuroi/pki/common/rsa"
-	"io/ioutil"
 )
 
 func pem2File(block *pem.Block, name string) {
@@ -42,7 +43,7 @@ func generateEd25519KeyPem() {
 	pem2File(pub, "./release/ed25519_public.pem")
 }
 func generateCARoot() {
-	rootInfo := accesscontrol.CertInformation{
+	rootInfo := accesscontrol.CertInfo{
 		Country:            []string{"CN"},
 		Organization:       []string{"jihao-CA"},
 		IsCA:               true,
@@ -61,6 +62,23 @@ func generateCARoot() {
 	pem2File(pri, "./release/ca_root_private.pem")
 }
 
+func generateCRL() {
+	crl, err := accesscontrol.NewCRL()
+	if err != nil {
+		log.Fatal(err)
+	}
+	b, err := asn1.Marshal(*crl)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	crlBlock := &pem.Block{
+		Type:  "X509 CRL",
+		Bytes: b,
+	}
+	pem2File(crlBlock, "./release/ca_crl.pem")
+}
+
 func main() {
 	fmt.Println("Creating RSA Keypair...")
 	generateRSAKeyPem()
@@ -68,4 +86,6 @@ func main() {
 	generateEd25519KeyPem()
 	fmt.Println("Creating CA ROOT crt and private key...")
 	generateCARoot()
+	fmt.Println("Creating CRL...")
+	generateCRL()
 }
