@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 )
 
 func NewCRL() (*pkix.CertificateList, error) {
@@ -15,8 +14,6 @@ func NewCRL() (*pkix.CertificateList, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(cert.TBSCertList.RevokedCertificates)
-	fmt.Println(*cert)
 	return cert, nil
 }
 

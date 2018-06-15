@@ -9,6 +9,8 @@ import (
 	"os"
 
 	"github.com/CsterKuroi/pki/accesscontrol"
+	"github.com/CsterKuroi/pki/common/nacl/box"
+	"github.com/CsterKuroi/pki/common/nacl/secretbox"
 	"github.com/CsterKuroi/pki/common/nacl/sign"
 	"github.com/CsterKuroi/pki/common/rsa"
 )
@@ -42,6 +44,21 @@ func generateEd25519KeyPem() {
 	pem2File(pri, "./release/ed25519_private.pem")
 	pem2File(pub, "./release/ed25519_public.pem")
 }
+
+func generateCurve25519KeyPem() {
+	alicePri, alicePub := box.GenerateKeyPair()
+	pem2File(alicePri, "./release/curve25519_alice_private.pem")
+	pem2File(alicePub, "./release/curve25519_alice_public.pem")
+	bobPri, bobPub := box.GenerateKeyPair()
+	pem2File(bobPri, "./release/curve25519_bob_private.pem")
+	pem2File(bobPub, "./release/curve25519_bob_public.pem")
+}
+
+func generatePoly1305KeyPem() {
+	secret := secretbox.GenerateSecretKey()
+	pem2File(secret, "./release/poly1305_secret.pem")
+}
+
 func generateCARoot() {
 	rootInfo := accesscontrol.CertInfo{
 		Country:            []string{"CN"},
@@ -84,6 +101,10 @@ func main() {
 	generateRSAKeyPem()
 	fmt.Println("Creating Ed25519 Keypair...")
 	generateEd25519KeyPem()
+	fmt.Println("Creating Curve25519 Keypair...")
+	generateCurve25519KeyPem()
+	fmt.Println("Creating Poly1305 Keypair...")
+	generatePoly1305KeyPem()
 	fmt.Println("Creating CA ROOT crt and private key...")
 	generateCARoot()
 	fmt.Println("Creating CRL...")

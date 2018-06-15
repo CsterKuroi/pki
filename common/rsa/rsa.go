@@ -10,7 +10,7 @@ import (
 	"log"
 )
 
-func GenerateKeyPair() (*pem.Block, *pem.Block) {
+func GenerateKeyPair() (private *pem.Block, public *pem.Block) {
 	bits := 1024
 	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {

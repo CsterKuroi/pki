@@ -1,19 +1,19 @@
 package accesscontrol
 
 import (
-	"crypto/rand"
+	cryptRand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"log"
 	"math/big"
-	mathrand "math/rand"
+	mathRand "math/rand"
 	"time"
 )
 
 func init() {
-	mathrand.Seed(time.Now().UnixNano())
+	mathRand.Seed(time.Now().UnixNano())
 }
 
 type CertInfo struct {
@@ -31,7 +31,7 @@ type CertInfo struct {
 func GenerateCert(RootCa *x509.Certificate, RootPri *rsa.PrivateKey, info CertInfo) (*pem.Block, *pem.Block, error) {
 	Cert := newCert(info)
 	bits := 1024
-	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
+	privateKey, err := rsa.GenerateKey(cryptRand.Reader, bits)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,9 +42,9 @@ func GenerateCert(RootCa *x509.Certificate, RootPri *rsa.PrivateKey, info CertIn
 
 	var buf []byte
 	if RootCa == nil || RootPri == nil { // CA 自签名 ROOT cert
-		buf, err = x509.CreateCertificate(rand.Reader, Cert, Cert, &privateKey.PublicKey, privateKey)
+		buf, err = x509.CreateCertificate(cryptRand.Reader, Cert, Cert, &privateKey.PublicKey, privateKey)
 	} else {
-		buf, err = x509.CreateCertificate(rand.Reader, Cert, RootCa, &privateKey.PublicKey, RootPri)
+		buf, err = x509.CreateCertificate(cryptRand.Reader, Cert, RootCa, &privateKey.PublicKey, RootPri)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -73,7 +73,7 @@ func VerifyCert(orgCertObj *x509.Certificate, opts x509.VerifyOptions, crl *pkix
 
 func newCert(info CertInfo) *x509.Certificate {
 	return &x509.Certificate{
-		SerialNumber: big.NewInt(mathrand.Int63()),
+		SerialNumber: big.NewInt(mathRand.Int63()),
 		Subject: pkix.Name{
 			Country:            info.Country,
 			Organization:       info.Organization,

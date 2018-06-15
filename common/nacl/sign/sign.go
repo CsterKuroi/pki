@@ -8,8 +8,8 @@ import (
 	"golang.org/x/crypto/nacl/sign"
 )
 
-func GenerateKeyPair() (*pem.Block, *pem.Block) {
-	publicKey, privateKey, err := sign.GenerateKey(rand.Reader)
+func GenerateKeyPair() (private *pem.Block, public *pem.Block) {
+	publicKey, privateKey, err := sign.GenerateKey(rand.Reader) // 32 64
 	if err != nil {
 		log.Fatal(err)
 	}

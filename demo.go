@@ -2,18 +2,20 @@ package main
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"github.com/CsterKuroi/pki/accesscontrol"
+	"github.com/CsterKuroi/pki/common/nacl/box"
+	"github.com/CsterKuroi/pki/common/nacl/secretbox"
 	"github.com/CsterKuroi/pki/common/nacl/sign"
 	"github.com/CsterKuroi/pki/common/rsa"
 
-	"crypto/x509/pkix"
 	"github.com/btcsuite/btcutil/base58"
-	"time"
 )
 
 const start = `
@@ -24,6 +26,8 @@ const start = `
 |____/    |_|   /_/   \_\ |_| \_\   |_|  
 `
 const end = `
+===================== All GOOD, Demo completed ===================== 
+
  _____   _   _   ____   
 | ____| | \ | | |  _ \  
 |  _|   |  \| | | | | | 
@@ -31,7 +35,7 @@ const end = `
 |_____| |_| \_| |____/  
 `
 
-var rsaPrivate, rsaPublic, ed25519Private, ed25519Public, rootCert, rootPri, crl *pem.Block
+var rsaPrivate, rsaPublic, ed25519Private, ed25519Public, curve25519AlicePrivate, curve25519AlicePublic, curve25519BobPrivate, curve25519BobPublic, poly1305Secret, rootCert, rootPri, crl *pem.Block
 
 func file2Pem(name string) *pem.Block {
 	b, err := ioutil.ReadFile(name)
@@ -49,9 +53,15 @@ func init() {
 	ed25519Private = file2Pem("./release/ed25519_private.pem")
 	ed25519Public = file2Pem("./release/ed25519_public.pem")
 
+	curve25519AlicePrivate = file2Pem("./release/curve25519_alice_private.pem")
+	curve25519AlicePublic = file2Pem("./release/curve25519_alice_public.pem")
+	curve25519BobPrivate = file2Pem("./release/curve25519_bob_private.pem")
+	curve25519BobPublic = file2Pem("./release/curve25519_bob_public.pem")
+
+	poly1305Secret = file2Pem("./release/poly1305_secret.pem")
+
 	rootCert = file2Pem("./release/ca_root_crt.pem")
 	rootPri = file2Pem("./release/ca_root_private.pem")
-
 	crl = file2Pem("./release/ca_crl.pem")
 }
 
@@ -102,6 +112,33 @@ func naclSignDemo() {
 	valid = sign.Verify(sig, fakePub)
 	fmt.Println("*verify*   >> :", valid)
 }
+
+func naclBoxDemo() {
+	//nacl.box[gen,seal,open]
+	fmt.Println("===================== CURVE25519 DEMO(gen,seal,open) =====================")
+	msg := []byte("President Trump meets Kim Jong-un")
+	fmt.Println("origin msg     :", string(msg))
+	cipher := box.Seal(msg, curve25519BobPublic, curve25519AlicePrivate)
+	fmt.Println("seal        >> :", cipher)
+	plain, ok := box.Open(cipher, curve25519BobPrivate, curve25519AlicePublic)
+	fmt.Println("open        >> :", string(plain), ok)
+}
+
+func naclSecretboxDemo() {
+	//nacl.secertbox[gen,seal,open]
+	fmt.Println("===================== POLY1305 DEMO(gen,seal,open) =====================")
+	msg := []byte("President Trump meets Kim Jong-un")
+	fmt.Println("origin msg      :", string(msg))
+	cipher := secretbox.Seal(msg, poly1305Secret)
+	fmt.Println("seal         >> :", cipher)
+	plain, ok := secretbox.Open(cipher, poly1305Secret)
+	fmt.Println("open         >> :", string(plain), ok)
+
+	fake := secretbox.GenerateSecretKey()
+	plain2, ok := secretbox.Open(cipher, fake)
+	fmt.Println("*open*       >> :", string(plain2), ok)
+}
+
 func caDemo() {
 	//accesscontrol[gen,verify]
 	fmt.Println("===================== CA DEMO(gen,verify) =====================")
@@ -147,12 +184,12 @@ func caDemo() {
 		log.Fatal(err)
 	}
 
-	valid, err := accesscontrol.VerifyCert(orgCertObj, opts,crlObj)
+	valid, err := accesscontrol.VerifyCert(orgCertObj, opts, crlObj)
 	fmt.Println("verify               >> :", valid, err)
 	opts2 := x509.VerifyOptions{
 		DNSName: "www.overwatch.com",
 	}
-	valid, err = accesscontrol.VerifyCert(orgCertObj, opts2,crlObj)
+	valid, err = accesscontrol.VerifyCert(orgCertObj, opts2, crlObj)
 	fmt.Println("*verify*             >> :", valid, err)
 
 	fmt.Println("crl list                :", crlObj.TBSCertList.RevokedCertificates)
@@ -163,7 +200,7 @@ func caDemo() {
 	accesscontrol.Append2CRL(rCert, crlObj)
 	fmt.Println("append to crl list   >> :", crlObj.TBSCertList.RevokedCertificates)
 
-	valid, err = accesscontrol.VerifyCert(orgCertObj, opts,crlObj)
+	valid, err = accesscontrol.VerifyCert(orgCertObj, opts, crlObj)
 	fmt.Println("*verify*             >> :", valid, err)
 }
 
@@ -171,6 +208,8 @@ func main() {
 	fmt.Println(start)
 	rsaDemo()
 	naclSignDemo()
+	naclBoxDemo()
+	naclSecretboxDemo()
 	caDemo()
 	fmt.Println(end)
 }
