@@ -9,12 +9,12 @@ import (
 func NewCRL() (*pkix.CertificateList, error) {
 
 	block, _ := pem.Decode([]byte(template))
-	cert, err := x509.ParseCRL(block.Bytes)
+	crl, err := x509.ParseCRL(block.Bytes)
 	//TODO not use template and update obj
 	if err != nil {
 		return nil, err
 	}
-	return cert, nil
+	return crl, nil
 }
 
 func Append2CRL(cert pkix.RevokedCertificate, crl *pkix.CertificateList) {
